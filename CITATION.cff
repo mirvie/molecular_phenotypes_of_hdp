@@ -1,0 +1,34 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Mirvie Jul 2024
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Nathaniel
+    family-names: Delaney-Busch
+    email: nate@mirvie.com
+    affiliation: Mirvie
+    orcid: 'https://orcid.org/0000-0002-2187-6867'
+  - given-names: Elaine
+    family-names: Gee
+    email: elaine@mirvie.com
+    affiliation: Mirvie
+    orcid: 'https://orcid.org/0000-0001-7453-4433'
+  - given-names: Arkady
+    family-names: Khodursky
+    email: arkady@mirvie.com
+    affiliation: Mirvie
+    orcid: 'https://orcid.org/0000-0002-4691-2828'
+  - given-names: Rory
+    family-names: Nolan
+    email: rory@mirvie.com
+    affiliation: Mirvie
+    orcid: 'https://orcid.org/0000-0002-5239-4043'
+  - given-names: Farooq
+    family-names: Siddiqui
+    email: farooq@mirvie.com
+    affiliation: Mirvie
