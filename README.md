@@ -55,6 +55,7 @@ Dependencies are listed per code file.
 * matplotlib 3.8.3
 * seaborn 0.13.2
 * sklearn 1.4.1.post1 
+* fig5a_helper.py (dependencies outlined above)
 
 ## `Figure_Extended_Data_1ab.R`
 * R 4.4.1
@@ -120,15 +121,20 @@ To run the code on your own data, the file structure must match as described bel
 column labels should be edited as appropriate in the scripts.
 
 ## Input files required by most scripts:
-All scripts require `sample_data.feather`, which is a feather formatted sample-wise 
-dataframe containing samples as rows and gene names and metadata information as columns.
+Most scripts (excluding `Figure_5a.ipynb`) require `sample_data.feather`, which is a 
+feather formatted sample-wise dataframe containing samples as rows and gene names and 
+metadata information as columns.
+
+Input files for `Figure_5a.ipynb` are samples from clinical validation that are not 
+accessible to the modeling team. Code can be run with alternative input files for 
+testing.
 
 ## Input files additionally required by `Stats.Rmd`
 `Stats.Rmd` additionally requires `genes_space.json`, a JSON containing gene names 
 comprising the search space. 
 
 ## Input files additionally required by `Figure_2c_3_4ab_Extended_Data_2.ipynb`
-In additon to the `helper_functions.py` script, this notebook requires 4 additional
+In addition to the `helper_functions.py` script, this notebook requires 4 additional
 input data files:
 * `genes_space.json`: a JSON containing gene names comprising the search space. 
 
