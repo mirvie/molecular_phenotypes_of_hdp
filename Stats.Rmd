@@ -1,0 +1,271 @@
+---
+title: "PE manuscript stats"
+author: "Mirvie"
+date: "2024-06-29"
+output: html_document
+---
+
+This script is for reproducing the IN-TEXT statistical claims in the manuscript. Figures and tables are delegated to auxiliary scripts, as well as the GSEA/GO analysis and CV notebook.
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load data
+```{r}
+df <- arrow::read_feather("sample_data.feather")
+gene_spaces <- jsonlite::read_json("genes_space.json")
+all_genes <- unlist(gene_spaces$all_genes)
+```
+
+
+# Abstract
+
+Correlation between PAPPA2 and delivery GA.
+```{r}
+# Implementation details:
+# - Pearson correlation
+# - Filtered to NMRF samples only
+# - Filtered to green triangle only
+cor_pappa2_dga <- df %>%
+  select(PAPPA2, is_nmrf, is_pappa2_hdp, delivery_ga) %>%
+  filter(
+    is_nmrf == TRUE,
+    is_pappa2_hdp == TRUE
+  ) %>%
+  correlation::cor_test(data = ., x = "PAPPA2", y = "delivery_ga", method = "pearson")
+print(cor_pappa2_dga)
+print(cor_pappa2_dga$p)
+print(psychometric::CI.Rsq(rsq = cor_pappa2_dga$r**2, k = 1, n = cor_pappa2_dga$n_Obs))
+```
+
+Cohen's d of PAPPA2 for PAPPA2+ HDP vs. CTRL within NMRF.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Filtered to NMRF samples only
+# - Comparison is GT vs everything else.
+reference_group <- df %>%
+  select(is_pappa2_hdp, is_nmrf, PAPPA2) %>%
+  filter(
+    is_pappa2_hdp == FALSE,
+    is_nmrf == TRUE
+  ) %>%
+  pull(PAPPA2)
+effect_sizes <- df %>%
+  select(is_pappa2_hdp, is_nmrf, PAPPA2) %>%
+  filter(is_nmrf == TRUE) %>%
+  group_by(is_pappa2_hdp) %>%
+  summarise(effectsize::cohens_d(PAPPA2, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(Cohens_d))
+effect_sizes
+```
+
+# Introduction
+
+## Study overview
+
+Sample size of training.
+```{r}
+nrow(df)
+```
+## Molecular phenotypes of disease
+
+Cohen's d of PAPPA2 for PE over all training.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - All PE vs Not PE
+effect_pappa2_pe <- effectsize::cohens_d(df$PAPPA2[df$is_pe == TRUE],
+  y = df$PAPPA2[df$is_pe == FALSE],
+  adjust = FALSE,
+  pooled_sd = TRUE
+)
+print(effect_pappa2_pe)
+print("")
+print(effect_pappa2_pe$Cohens_d)
+```
+
+Cohen's d of CD163 for PE over all training.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - All PE vs Not PE
+effect_cd163_pe <- effectsize::cohens_d(df[df$is_pe == TRUE, "CD163"]$CD163,
+  y = df[df$is_pe == FALSE, "CD163"]$CD163,
+  adjust = FALSE,
+  pooled_sd = TRUE
+)
+print(effect_cd163_pe)
+print("")
+print(effect_cd163_pe$Cohens_d)
+```
+
+Cohen's d for PAPPA2+ PE and other HDP vs healthy controls
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - "joint Cohen's d" is interpreted to mean giving all the relevant samples the same label and then computing effect size
+# - Reference group is hdp_severity == "control" (i.e. no PE, no GHTN, no ambiguity in the label)
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA2) %>%
+  filter(hdp_severity == "control") %>%
+  pull(PAPPA2)
+effect_sizes <- df %>%
+  select(hdp_severity, hdp_vanity_group, is_nmrf, PAPPA2) %>%
+  filter(hdp_vanity_group != "PE, Ambiguous") %>%
+  group_by(hdp_severity) %>%
+  summarise(effectsize::cohens_d(PAPPA2, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(Cohens_d))
+effect_sizes
+```
+
+NMRF and MRF sample size in training.
+```{r}
+df %>%
+  select(is_nmrf) %>%
+  group_by(is_nmrf) %>%
+  summarise(n = n())
+```
+
+Cohen's d of PAPPA2 for PAPPA2+ PE and Other HDP vs healthy controls within MRF.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Reference group is hdp_severity == "control" (i.e. exclude GHTN, non-GT PE)
+# - Filtered to NMRF == False
+# - Use the hdp_severity label to identify GT instead of the GT label, to align with identification of controls.
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA2) %>%
+  filter(
+    hdp_severity == "control",
+    is_nmrf == FALSE
+  ) %>%
+  pull(PAPPA2)
+effect_sizes <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA2) %>%
+  filter(is_nmrf == FALSE) %>%
+  group_by(hdp_severity) %>%
+  summarise(effectsize::cohens_d(PAPPA2, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(Cohens_d))
+effect_sizes
+```
+
+Cohen's d of PAPPA2 for PAPPA2+ PE and Other HDP vs healthy controls within NMRF.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Reference group is hdp_severity == "control" (i.e. exclude GHTN, non-GT PE)
+# - Filtered to NMRF == True
+# - Use the hdp_severity label to identify GT instead of the GT label, to align with identification of controls.
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA2) %>%
+  filter(
+    hdp_severity == "control",
+    is_nmrf == TRUE
+  ) %>%
+  pull(PAPPA2)
+effect_sizes <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA2) %>%
+  filter(is_nmrf == TRUE) %>%
+  group_by(hdp_severity) %>%
+  summarise(effectsize::cohens_d(PAPPA2, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(Cohens_d))
+effect_sizes
+```
+
+Correlation between PAPPA2 and delivery GA within NMRF, by PAPPA2+ status.
+```{r}
+# Implementation details:
+# - Pearson correlation
+# - Filtered to NMRF samples only
+# - Filtered to green triangle only
+cor_pappa2_dga <- df %>%
+  select(PAPPA2, is_nmrf, is_pappa2_hdp, delivery_ga) %>%
+  filter(
+    is_nmrf == TRUE,
+    is_pappa2_hdp == TRUE
+  ) %>%
+  correlation::cor_test(data = ., x = "PAPPA2", y = "delivery_ga", method = "pearson")
+print(cor_pappa2_dga)
+print(cor_pappa2_dga$p)
+print(psychometric::CI.Rsq(rsq = cor_pappa2_dga$r**2, k = 1, n = cor_pappa2_dga$n_Obs))
+```
+
+Cohen's d of PAPPA2 for non-PE spontaneous preterm birth
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Move PE to control (i.e. these are sPTB "due to preeclampsia")
+# - Postpartum PE still included in the sPTB.
+df$sptb_not_pe <- FALSE
+df[(df$is_pe == FALSE) & (df$is_sptb == TRUE), "sptb_not_pe"] <- TRUE
+print(sum(df$sptb_not_pe))
+print(effectsize::cohens_d(df$PAPPA2[df$sptb_not_pe == TRUE], 
+                           y = df$PAPPA2[df$sptb_not_pe == FALSE], 
+                           adjust = FALSE, pooled_sd = TRUE))
+```
+
+## RNA-driven Classifier to Predict PAPPA2+ HDP
+
+Cohen's d of PAPPA (not PAPPA2) for PAPPA2+ PE and Other HDP vs. healthy controls within NMRF.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Reference group is hdp_severity == "control" (i.e. exclude GHTN, non-GT PE)
+# - Filtered to NMRF == True
+# - Use the hdp_severity label to identify GT instead of the GT label, to align with identification of controls.
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA) %>%
+  filter(
+    hdp_severity == "control",
+    is_nmrf == TRUE
+  ) %>%
+  pull(PAPPA)
+effect_sizes <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA) %>%
+  filter(is_nmrf == TRUE) %>%
+  group_by(hdp_severity) %>%
+  summarise(effectsize::cohens_d(PAPPA, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  )
+effect_sizes
+```
+
+Cohen's d of PLGF for PAPPA2+ PE and Other HDP vs. healthy controls within NMRF.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Reference group is hdp_severity == "control" (i.e. exclude GHTN, non-GT PE)
+# - Filtered to NMRF == True
+# - Use the hdp_severity label to identify GT instead of the GT label, to align with identification of controls.
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, PGF) %>%
+  filter(
+    hdp_severity == "control",
+    is_nmrf == TRUE
+  ) %>%
+  pull(PGF)
+effect_sizes <- df %>%
+  select(hdp_severity, is_nmrf, PGF) %>%
+  filter(is_nmrf == TRUE) %>%
+  group_by(hdp_severity) %>%
+  summarise(effectsize::cohens_d(PGF, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  )
+effect_sizes
+```
+
+```{r}
+sessionInfo()
+```
