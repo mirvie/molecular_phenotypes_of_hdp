@@ -1,5 +1,7 @@
 # Prospectively validated predictor reveals first molecular phenotypes of hypertensive disorders of pregnancy 
 
+[![DOI](https://zenodo.org/badge/831186081.svg)](https://zenodo.org/doi/10.5281/zenodo.12786388)
+
 # Overview
 This repository contains code to reproduce the statistics and figures for 
 **"Prospectively validated predictor reveals first molecular phenotypes of
