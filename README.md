@@ -17,6 +17,7 @@ Each code files generates results as described:
 5. `Figure_5a.ipynb`: Jupyter notebook for creating Figure 5a
 6. `Figure_5b.R`: R script for creating Figure 5b
 7. `Figure_Extended_Data_1ab.R`: R script for Extended Data Figure 1a and 1b
+8. `SI_proximity_to_delivery.R`: R script for "Evaluation of Collection Proximity to Delivery versus HDP Severity" in supplemental information.
 
 
 # Dependencies
@@ -164,7 +165,7 @@ Expected run times should complete in less than a minute.
 3. Hit the "knit" button in Rstudio.
 ```
 
-### Instructions for running `Figure_2ab.R`, `Figure_4c.R`, `Figure_5b.R`,
+### Instructions for running `Figure_2abc.R`, `Figure_4c.R`, `Figure_5b.R`,
 ```
 1. Install needed dependencies as listed above.
 2. Open the file in Rstudio.
