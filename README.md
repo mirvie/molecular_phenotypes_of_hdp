@@ -10,7 +10,7 @@ hypertensive disorders of pregnancy"**.
 # Code Files
 Each code files generates results as described: 
 1. `Stats.Rmd`: R markdown for generating statistics in manuscript
-2. `Figure_2ab.R`: R script for creating Figures 2a and 2b
+2. `Figure_2abc.R`: R script for creating Figures 2a-2c
 3. `Figure_2c_3_4ab_Extended_Data_2.ipynb`: Jupyter notebook for creating Figures 2c, 3,
 4a, 4b, and Extended Data Figure 2
 4. `Figure_4c.R`: R script for creating Figure 4c
