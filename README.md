@@ -16,7 +16,7 @@ Each code files generates results as described:
 4. `Figure_4c.R`: R script for creating Figure 4c
 5. `Figure_5a.ipynb`: Jupyter notebook for creating Figure 5a
 6. `Figure_5b.R`: R script for creating Figure 5b
-7. `Figure_Extended_Data_1ab.R`: R script for Extended Data Figure 1a and 1b
+7. `Figure_Extended_Data_2ab.R`: R script for Extended Data Figure 2a and 2b
 8. `SI_proximity_to_delivery.R`: R script for "Evaluation of Collection Proximity to Delivery versus HDP Severity" in supplemental information.
 
 
@@ -60,7 +60,7 @@ Dependencies are listed per code file.
 * sklearn 1.4.1.post1 
 * fig5a_helper.py (dependencies outlined above)
 
-## `Figure_Extended_Data_1ab.R`
+## `Figure_Extended_Data_2ab.R`
 * R 4.4.1
 * cogena 1.21.2
 * fgsea 1.30.0
@@ -72,7 +72,7 @@ Dependencies are listed per code file.
 
 ## Installing dependencies for R and R markdown
 
-### `Figure_2ab.R`, `Figure_4c.R`, `Figure_5b.R`, and `Stats.Rmd`
+### `Figure_2abc.R`, `Figure_4c.R`, `Figure_5b.R`, and `Stats.Rmd`
 To install dependencies, perform the following:
 ```
 1. Install R 4.2.2 from https://cran.r-project.org/bin/windows/base/old/
@@ -81,7 +81,7 @@ To install dependencies, perform the following:
 4. Install the listed dependencies via calls to devtools::install_version("PACKAGE", version = "VERSION", repos = "http://cran.us.r-project.org"), where PACKAGE is the package name and VERSION is the package version
 ```
 
-### `Figure_Extended_Data_1ab.R`
+### `Figure_Extended_Data_2ab.R`
 To install packages, run
 ```
 # CRAN packages
@@ -148,7 +148,7 @@ the following figures:
 * `fig4ab_de_data.feather`: input for generating Figures 4a, 4b
 * `ed_fig2_de_data.feather`: input for generating Figure 2
 
-## Input files additionally required by `Figure_Extended_Data_1ab.R`
+## Input files additionally required by `Figure_Extended_Data_1abc.R`
 This script additionally requires a GMT annotation file.
 
 # Running the Code
@@ -172,7 +172,7 @@ Expected run times should complete in less than a minute.
 3. Execute code in order. Can execute the entire file from the R console via source("SCRIPTNAME.R", echo = TRUE).
 ```
 
-### Instructions for running `Figure_extended_data_1AB.R`
+### Instructions for running `Figure_extended_data_2AB.R`
 The script can be sourced  from R console or in Rstudio environment. 
 
 ## Running Jupyter Notebooks
