@@ -16,7 +16,7 @@ Each code files generates results as described:
 4. `Figure_4c.R`: R script for creating Figure 4c
 5. `Figure_5a.ipynb`: Jupyter notebook for creating Figure 5a
 6. `Figure_5b.R`: R script for creating Figure 5b
-7. `Figure_Extended_Data_2ab.R`: R script for Extended Data Figure 2a and 2b
+7. `Figure_Extended_Data_2ab_4_5.R`: R script for Extended Data Figure 2a and 2b, 4, and 5
 8. `SI_proximity_to_delivery.R`: R script for "Evaluation of Collection Proximity to Delivery versus HDP Severity" in supplemental information.
 
 
@@ -60,13 +60,14 @@ Dependencies are listed per code file.
 * sklearn 1.4.1.post1 
 * fig5a_helper.py (dependencies outlined above)
 
-## `Figure_Extended_Data_2ab.R`
+## `Figure_Extended_Data_2ab_4_5.R`
 * R 4.4.1
 * cogena 1.21.2
 * fgsea 1.30.0
 * ggplot2 3.5.1
 * msigdbr 7.5.1
 * tidyverse 2.0.0
+* ggpubr 0.6.0
 
 # Installation Guide
 
@@ -81,11 +82,11 @@ To install dependencies, perform the following:
 4. Install the listed dependencies via calls to devtools::install_version("PACKAGE", version = "VERSION", repos = "http://cran.us.r-project.org"), where PACKAGE is the package name and VERSION is the package version
 ```
 
-### `Figure_Extended_Data_2ab.R`
+### `Figure_Extended_Data_2ab_4_5.R`
 To install packages, run
 ```
 # CRAN packages
-list_of_cran_packages <- c("fgsea","ggplot2", "msigdbr", "tidyverse")
+list_of_cran_packages <- c("fgsea","ggplot2", "msigdbr", "tidyverse", "ggpubr")
 new.packages <- setdiff(list_of_cran_packages, installed.packages()[,"Package"])
 if(length(new.packages)) install.packages(new.packages)
 
@@ -172,7 +173,7 @@ Expected run times should complete in less than a minute.
 3. Execute code in order. Can execute the entire file from the R console via source("SCRIPTNAME.R", echo = TRUE).
 ```
 
-### Instructions for running `Figure_extended_data_2AB.R`
+### Instructions for running `Figure_extended_data_2AB_4_5.R`
 The script can be sourced  from R console or in Rstudio environment. 
 
 ## Running Jupyter Notebooks
