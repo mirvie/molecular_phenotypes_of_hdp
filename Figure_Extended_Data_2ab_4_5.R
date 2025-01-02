@@ -1,4 +1,4 @@
-# This scripts generates figure panels for extended data Figure 1AB, Figures 4 and 5, 
+# This scripts generates figure panels for extended data Figure 2AB, Figures 4 and 5, 
 # and supplementary figures 1 and 2, given full dataset and gmt annotation.
 ######################################### Prerequisites 
 ##################### Package installation
