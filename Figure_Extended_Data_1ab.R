@@ -1,5 +1,5 @@
-# This scripts generates figure panels for extended data Figure 1AB and supplementary
-# figures 1 and 2, given full dataset and gmt annotation.
+# This scripts generates figure panels for extended data Figure 1AB, Figures 4 and 5, 
+# and supplementary figures 1 and 2, given full dataset and gmt annotation.
 ######################################### Prerequisites 
 ##################### Package installation
 #CRAN packages
@@ -46,7 +46,7 @@ msig_C8 <- cogena::gmt2list("./inputs/c8.all.v2023.2.Hs.symbols.gmt")
 #stringDB PPI
 ppi_list <- readRDS("./inputs/PPI_list.rds")
 
-#Alternatively, a slightly different gene list can constructed using msigdbr package as follows:
+#Alternatively, a slightly different gene list can be constructed using msigdbr package as follows:
 msig_C5_GO_df <- msigdbr::msigdbr(species = "Homo sapiens", category = "C5")
 msig_C5_GO <- split(msig_C5_GO_df$gene_symbol,msig_C5_GO_df$gs_name)
 
@@ -250,3 +250,33 @@ plot_gsea_singles_new <- function(df, top_n, padj_cutoff=NULL, name1, name2){
 # plot_gsea_singles_new(
 #   df = fgseaRes_sample_nmrf_other_pe_d,
 #   top_n = 20, name1 = "PAPPA+", name2 = "PAPPA2-", padj_cutoff = NULL)
+
+####################################### generating extended figure 4
+
+# Input:
+tissue_cor_thresh_res_thr99q <- readRDS("./inputs/tissue_cor_thresh_res_thr99q.rds")
+model_genes <- c("PAPPA2", "CD163", "VSIG4", "ADAM12", "XAGE2", "KISS1", "VGLL3", "SVEP1" , "KRT7" )
+
+plot_list <- lapply(model_genes, function(gene_x)
+  tissue_cor_thresh_res_thr99q[, c("type", gene_x)] %>%
+    slice_max(!!as.name(gene_x), n=6) %>%
+    ggplot(., aes(x = reorder(type, !!as.symbol(gene_x)), y = !!as.symbol(gene_x))) + geom_bar(stat = "identity", position = "dodge") + coord_flip() + labs(title = gene_x, x = "Tissue type", y = "Fraction")
+)
+ggpubr::ggarrange(plotlist = plot_list[c(1:6)], nrow = 2, ncol = 3)
+
+
+
+
+####################################### generating extended figure 5
+
+# Input:
+fraction_specific_correlates_fisherZ_qtX <- readRDS("./inputs/fraction_specific_correlates_fisherZ_qtX.rds")
+
+plot_list <- lapply(model_genes[c(1:6)], function(gene_x)
+  fraction_specific_correlates_fisherZ_qtX[[gene_x]] %>%
+    slice_max(fr, n=6) %>%
+    #filter(fr >0.01) %>%
+    ggplot(., aes(x = reorder(cell_type, fr), y = fr)) + geom_bar(stat = "identity", position = "dodge") + coord_flip() + labs(title = gene_x, x = "Cell type", y = "Fraction")
+)
+
+ggpubr::ggarrange(plotlist = plot_list[c(1:6)], nrow = 2, ncol = 3)
