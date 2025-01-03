@@ -1,6 +1,6 @@
 library(tidyverse)
 
-# NMRF AMA LR+ values (from CV data results notebook)
+# NMRF LR+ values for the three subgroups (from CV data results notebook)
 classifier_LRpos <- 2.417301921285916
 uspstf_LRpos <- 1.5086685292204065
 
