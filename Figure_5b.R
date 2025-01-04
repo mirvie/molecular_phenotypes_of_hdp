@@ -1,6 +1,6 @@
 library(tidyverse)
 
-# NMRF LR+ values for the three subgroups (from CV data results notebook)
+# NMRF AMA LR+ values (from CV data results notebook)
 classifier_LRpos <- 2.417301921285916
 uspstf_LRpos <- 1.5086685292204065
 
@@ -12,6 +12,18 @@ uspstf_LRpos_AMA <- 1.1684053651266764
 
 
 # Plot results
+df_lrplus <- data.frame(
+positive_likelihood_ratio = c(classifier_LRpos, uspstf_LRpos, 
+                              classifier_LRpos_dga_lte35, uspstf_LRpos_dga_lte35, 
+                              classifier_LRpos_AMA, uspstf_LRpos_AMA),
+pred_source = c("Classifier", "USPSTF", "Classifier", "USPSTF", "Classifier", "USPSTF"),
+subgroup = c("All NMRF", "All NMRF", 
+             "NMRF, delivery <= 35 weeks", "NMRF, delivery <= 35 weeks",
+             "NMRF, AMA", "NMRF, AMA")
+)
+df_lrplus$pred_source <- factor(df_lrplus$pred_source, levels = c("USPSTF", "Classifier"))
+df_lrplus$subgroup <- factor(df_lrplus$subgroup, levels = c("All NMRF", "NMRF, delivery <= 35 weeks", "NMRF, AMA"))
+df_lrplus$positive_likelihood_ratio_rounded <- round(df_lrplus$positive_likelihood_ratio, 2)
 barplot <- ggplot(
   df_lrplus,
   aes(
@@ -33,8 +45,8 @@ barplot <- ggplot(
   theme_minimal() +
   scale_fill_manual(values = c(
     "All NMRF" = "#1f77b4",
-    "NMRF, delivery <= 35 weeks" = "#ff7f0e",
-    "NMRF, AMA" = "#2ca02c"
+    "NMRF, delivery <= 35 weeks" = "#2ca02c",
+    "NMRF, AMA" = "#ff7f0e"
   )) +
   scale_alpha_manual(values = c(0.4, 0.8)) +
   ylab("Positive Likelihood Ratio") +
