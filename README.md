@@ -70,11 +70,17 @@ Dependencies are listed per code file.
 * tidyverse 2.0.0
 * ggpubr 0.6.0
 
+## `SI_proximity_to_delivery.R`
+* R 4.2.2
+* tidyverse 2.0.0
+* arrow 10.0.1
+* Hmisc 5.1-3
+
 # Installation Guide
 
 ## Installing dependencies for R and R markdown
 
-### `Figure_2abc.R`, `Figure_4c.R`, `Figure_5b.R`, and `Stats.Rmd`
+### `Figure_2abc.R`, `Figure_4c.R`, `Figure_5b.R`, `SI_proximity_to_delivery.R`, and `Stats.Rmd`
 To install dependencies, perform the following:
 ```
 1. Install R 4.2.2 from https://cran.r-project.org/bin/windows/base/old/
@@ -175,7 +181,7 @@ Expected run times should complete in less than a minute.
 3. Hit the "knit" button in Rstudio.
 ```
 
-### Instructions for running `Figure_2abc.R`, `Figure_4c.R`, `Figure_5b.R`,
+### Instructions for running `Figure_2abc.R`, `Figure_4c.R`, `Figure_5b.R`, and `SI_proximity_to_delivery.R`
 ```
 1. Install needed dependencies as listed above.
 2. Open the file in Rstudio.
