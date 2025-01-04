@@ -62,14 +62,14 @@ compute_hdp_effects_coarse <- function(data) {
       n = n()
     )
   effect_sizes_coarse$effect <- effect_sizes_coarse$effect$Cohens_d
-  effect_sizes_coarse[effect_sizes_coarse$hdp_severity == "other_hdp", "hdp_severity"] <- "PAPPA2-"
-  effect_sizes_coarse[effect_sizes_coarse$hdp_severity == "preterm_pe", "hdp_severity"] <- "PAPPA2+"
+  effect_sizes_coarse[effect_sizes_coarse$hdp_severity == "other_hdp", "hdp_severity"] <- "Immune Driven"
+  effect_sizes_coarse[effect_sizes_coarse$hdp_severity == "preterm_pe", "hdp_severity"] <- "Placenta Driven"
   effect_sizes_coarse[effect_sizes_coarse$hdp_severity == "control", "hdp_severity"] <- "Non HDP"
   effect_sizes_coarse$hdp_severity <- factor(effect_sizes_coarse$hdp_severity,
     levels = c(
       "Non HDP",
-      "PAPPA2-",
-      "PAPPA2+"
+      "Immune Driven",
+      "Placenta Driven"
     )
   )
 
@@ -81,7 +81,7 @@ compute_hdp_effects_coarse <- function(data) {
 
 # fine groups
 effect_sizes_all <- compute_hdp_effects(df)
-effect_sizes_all$grouping <- "PAPPA2 Expression"
+effect_sizes_all$grouping <- "Molecular Phenotype"
 effect_sizes_all$grouping_nmrf <- "All Pregnancies"
 
 effect_sizes_mrf <- compute_hdp_effects(df %>% filter(is_mrf == TRUE))
@@ -111,21 +111,24 @@ effect_sizes_combined$hdp_vanity_group <- factor(effect_sizes_combined$hdp_vanit
 
 # coarse groups
 effect_sizes_coarse_all <- compute_hdp_effects_coarse(df)
-effect_sizes_coarse_all$grouping <- "PAPPA2 Expression"
+effect_sizes_coarse_all$grouping <- "Molecular Phenotype"
 effect_sizes_coarse_all$grouping_nmrf <- "All Pregnancies"
 
 effect_sizes_coarse_mrf <- compute_hdp_effects_coarse(df %>% filter(is_mrf == TRUE))
-effect_sizes_coarse_mrf$grouping <- "Molecular Phenotype"
+effect_sizes_coarse_mrf$grouping <- "Maternal risk factor (RF)"
 effect_sizes_coarse_mrf$grouping_nmrf <- "MRF Pregnancies"
 
 effect_sizes_coarse_nmrf <- compute_hdp_effects_coarse(df %>% filter(is_nmrf == TRUE))
-effect_sizes_coarse_nmrf$grouping <- "Molecular Phenotype"
+effect_sizes_coarse_nmrf$grouping <- "Maternal risk factor (RF)"
 effect_sizes_coarse_nmrf$grouping_nmrf <- "No MRF Pregnancies"
 
 effect_sizes_coarse_combined <- bind_rows(effect_sizes_coarse_all, effect_sizes_coarse_nmrf, effect_sizes_coarse_mrf)
 effect_sizes_coarse_combined$grouping_nmrf <- factor(effect_sizes_coarse_combined$grouping_nmrf, levels = c("All Pregnancies", "MRF Pregnancies", "No MRF Pregnancies"))
 effect_sizes_coarse_combined$hdp_severity <- factor(effect_sizes_coarse_combined$hdp_severity,
-  levels = c("Non HDP", "PAPPA2-", "PAPPA2+")
+  levels = c("Non HDP", "Immune Driven", "Placenta Driven")
+)
+effect_sizes_coarse_combined$grouping <- factor(effect_sizes_coarse_combined$grouping,
+                                                    levels = c("Molecular Phenotype", "Maternal risk factor (RF)")
 )
 
 # PE mean
@@ -177,15 +180,19 @@ heatmap <- ggplot(
   coord_cartesian(xlim = c(1, 1.05))
 
 # 2b. Float Text NMRF ----------------------------------------------------------
-combined_nmrf <- ggplot(effect_sizes_coarse_combined, aes(x = grouping_nmrf, y = effect, fill = effect)) +
+combined_nmrf <- ggplot(effect_sizes_coarse_combined[effect_sizes_coarse_combined$hdp_severity != 'Non HDP', ], 
+                        aes(x = grouping, y = effect, fill = effect)) +
+  geom_segment(aes(x = as.numeric(grouping), xend = 2.4, group = grouping), 
+               color = "gray20", 
+               linetype = "dashed",
+               alpha = 0.3) +
   ggtext::geom_richtext(aes(label = hdp_severity),
-    color = "white",
-    label.padding = unit(c(0.2, 0.8, 0.2, 0.8), "lines"),
-    label.margin = unit(c(0, 0, 0, 0), "lines"),
-    hjust = 0.5, vjust = 0.5,
-    size = 3,
-    fontface = "bold"
-  ) +
+                        color = "white",
+                        label.padding = unit(c(0.2,0.8,0.2,0.8), "lines"),
+                        label.margin = unit(c(0, 0, 0, 0), "lines"),
+                        hjust = 0.5, vjust = 0.5,
+                        size = 3,
+                        fontface = "bold") + 
   coord_cartesian(ylim = c(0, top_effect)) +
   theme_minimal() +
   scale_x_discrete(
@@ -222,5 +229,5 @@ color_bar <- ggplot(colorbar_grid) +
 # Single heatmap
 combined_fig <- heatmap + plot_spacer() + combined_nmrf + color_bar +
   plot_layout(widths = c(3, 6, 25, 2))
-ggsave("fig2ab_combined.pdf", combined_fig, width = 8, height = 5.5)
-ggsave("fig2ab_combined.svg", combined_fig, width = 9.5, height = 5.5)
+ggsave("fig2abc_combined.pdf", combined_fig, width = 8, height = 5.5)
+ggsave("fig2abc_combined.svg", combined_fig, width = 9.5, height = 5.5)

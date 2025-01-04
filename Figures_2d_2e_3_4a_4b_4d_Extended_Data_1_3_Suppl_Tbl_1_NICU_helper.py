@@ -1,3 +1,5 @@
+from collections import OrderedDict
+from itertools import chain, tee
 from typing import Sequence
 
 import matplotlib as mpl
@@ -6,8 +8,257 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
-from scipy.stats import chi2, linregress
+from scipy.stats import chi2, linregress, mannwhitneyu
 from sklearn.linear_model import HuberRegressor
+from statsmodels.stats.multitest import multipletests
+
+
+def _add_pvalue_bar_to_plot(
+    pval: float,
+    x_groups: list[tuple[str, str]],
+    ax: plt.Axes,
+    max_y: float,
+    height: float,
+    height_level: int,
+    color: str = "dimgray",
+    pct_offset: float = 0.05,
+):
+    """
+    Add p-value annotation (bar & p-value) to a boxplot between two groups mapped to the
+    X axis, specified by each tuple pair in `x_groups`.
+
+    Args:
+        pval: p-value to use in bar annotation
+        x_groups: list of 2-tuples group names in x-axis to add p-value bar across
+            e.g. ``[("A", "B"), ("B", "C"), ("A", "C")]``
+        ax: axes class for plot to annotate
+        max_y: max y-value of data in plot
+        height: height of bars in plot
+        height_level: level at which to add the bar (used to add multiple p-value
+            bars to a pot). Default is 1.
+        color: color of p-value bar annotation. Default is "dimgray".
+        pct_offset: number between -1 and 1; percent to shrink bar annotation edges
+            at x-axis groups (0 is centered). Default is 0.05 (5%).
+    """
+    assert (pval >= 0) & (
+        pval <= 1
+    ), f"pval must be in the interval [0,1], given {pval}"
+    assert len(x_groups) == 2, "Only 2 group names on the x-axis can be annotated"
+    # Get position on x axis
+    x_pos = [np.nan] * 2
+    for group_idx, group_name in enumerate(x_groups):
+        x_match = [x for x in ax.get_xticklabels() if x.get_text() == str(group_name)]
+        assert len(x_match) == 1, f"Single match for {group_name} not found"
+        x_pos[group_idx] = x_match[0].get_position()[0]
+    x_pos.sort()
+    # Add offsets to prevent adjacent annotations from overlapping
+    x_pos[0] = (1 + pct_offset) * x_pos[0]
+    x_pos[1] = (1 - pct_offset) * x_pos[1]
+
+    # Set bar params
+    bar_y = max_y + height * height_level + height * (height_level - 1)
+
+    # Convert p-value to text annotation
+    if pval > 0.001:
+        text = f"{pval:.3f}".rstrip("0")
+    else:
+        text = f"p={pval:.1e}"
+
+    # Add bar with annotation
+    ax.plot(
+        [x_pos[0], x_pos[0], x_pos[1], x_pos[1]],
+        [bar_y, bar_y + height, bar_y + height, bar_y],
+        lw=1.5,
+        c=color,
+    )
+    ax.text(
+        (x_pos[0] + x_pos[1]) * 0.5,
+        (bar_y + height) + 0.2 * height,
+        str(text),
+        ha="center",
+        va="bottom",
+        color=color,
+    )
+
+    # Adjust ylims to fit bar
+    y_lims = ax.get_ylim()
+    ax.set_ylim(bottom=y_lims[0], top=max(y_lims[1], bar_y + 3.5 * height))
+
+
+def plot_boxplots_with_pvals(
+    plot_df: pd.DataFrame,
+    x: str,
+    y: str,
+    order: list,
+    contrasts: list[tuple[str, str]],
+    fig_size: list | tuple = (5, 3.75),
+    title: str | None = None,
+    p_sig_thresh: float = 0.05,
+    mw_alt: str = "two-sided",
+    multiple_test_corr_method: str = "bonferroni",
+    palette: str | sns.palettes._ColorPalette | None = None,
+) -> tuple[plt.Figure, plt.Axes, pd.DataFrame]:
+    """
+    Plot boxplot with p-value bars calculated for each tuple in contrasts. P-values
+    are adjusted by Mann Whitney where the alternative is defined by mw_alt and
+    multiple test correction multiple_test_corr_method is applied.
+
+    Args:
+        plot_df: Dataframe that contains x and y to plot
+        x: column name of plot_df to plot on x-axis (should be a string or category
+            column type)
+        y: column name of plot_df to plot on y-axis (should be a numeric column type)
+        order: order of groups on x-axis, from left to right
+        contrasts: list of 2-tuples group names in x-axis to add p-value bar across
+                e.g. ``[("A", "B"), ("B", "C"), ("A", "C")]``.
+                This function annotates pairs sequentially through the list. Annotations
+                will appear at the lowest available level where the space is free.
+                Recommended usage is to submit contrasts for adjacent/neighboring groups
+                first (shorter bars) followed by pairs with increasing distance between
+                them (longer bars).
+        fig_size: width, height  of figure, in inches. Default is (5, 3.75).
+        title: if given, add title. Default is None.
+        p_sig_thresh: significance level for multiple testing pass/fail. Default is
+            0.05.
+        mw_alt: alternative hypothesis for scipy.stats.mannwhitneyu. Default is
+            two-sided.
+        multiple_test_corr_method: mutiple testing correction method for
+            statsmodels.stats.multitest import multipletests. Default is bonferroni.
+        palette: if None, use standard palette for boxplot. Default is
+            reversed(sns.color_palette("viridis").
+
+    Returns:
+        figure handle, figure Axes, pd.DataFrame containing p-values from
+        adjusted Mann-Whitney p-values
+    """
+    assert isinstance(contrasts, list), "Contrast must be a list of tuples"
+    assert all(
+        isinstance(x, tuple) for x in contrasts
+    ), "Contrast must be a list of tuples"
+    all_contrasts = list(set(chain(*contrasts)))
+    assert set(all_contrasts) <= set(
+        plot_df[x]
+    ), "Some elements of contrasts are not in plot_df[x]"
+    assert set(order) <= set(
+        plot_df[x]
+    ), "Order must be a subset or equal to the unique values of x"
+    assert not (plot_df[x].isna().any()), "plot_df[x] cannot contain missing values"
+    if palette is None:
+        palette = reversed(sns.color_palette("viridis"))
+    elif isinstance(palette, str):
+        palette = sns.color_palette(palette, as_cmap=False)
+
+    # Take just needed rows and columns, make a deep copy to prevent changing original
+    df = plot_df.loc[plot_df[x].isin(order), [x, y]].reset_index(drop=True).copy()
+
+    # sort df by x column to control color assigment, using the order variable
+    df = df.sort_values(by=x, key=lambda column: column.map(lambda e: order.index(e)))
+
+    # Make boxplot
+    fig, ax = plt.subplots(figsize=fig_size)
+    ax.grid(False)
+    palette, palette_points = tee(palette)  # copy iterator to prevent consumption
+    sns.stripplot(
+        data=df,
+        x=x,
+        y=y,
+        order=order,
+        hue=x,
+        dodge=False,
+        palette=palette_points,
+        legend=False,
+    )
+    sns.boxplot(
+        data=df,
+        x=x,
+        y=y,
+        order=order,
+        hue=x,
+        boxprops={"alpha": 0.3},
+        whiskerprops={"linewidth": 0.7},
+        palette=palette,
+        legend=False,
+    )
+    # Add plot labels
+    if title is None:
+        title = ""
+    else:
+        assert isinstance(title, str), "Title must be a string"
+    ax.set_title(title)
+
+    # Add p-value annotations
+    mw_rows = {}
+    for i, contrast in enumerate(contrasts):
+        mw_df = df[df[x].isin(contrast)].reset_index(drop=True).copy()
+        mw_df["mw_label"] = mw_df[x] == contrast[0]
+        _, pval = mannwhitneyu(
+            mw_df.loc[mw_df["mw_label"] == False, y].reset_index(drop=True),
+            mw_df.loc[mw_df["mw_label"] == True, y].reset_index(drop=True),
+            alternative=mw_alt,
+            use_continuity=False,
+        )
+        mw_rows[i] = {
+            "contrast_a": contrast[0],
+            "contrast_b": contrast[1],
+            "pvalue": pval,
+        }
+    mw = pd.DataFrame.from_dict(mw_rows, orient="index")
+    mw["reject_null"], mw["pvalue_adj"], _, _ = multipletests(
+        mw.pvalue, alpha=p_sig_thresh, method=multiple_test_corr_method
+    )
+    ylims = ax.get_ylim()
+    height = (ylims[1] - ylims[0]) * 0.1
+
+    # Plot pval bars in lowest available space
+    rendered_positions: OrderedDict[int, set] = OrderedDict({1: set()})
+    for _, row in mw.iterrows():
+        pval_adj = row.pvalue_adj
+        x_group_1 = row.contrast_a
+        x_group_2 = row.contrast_b
+        x_group_1_position = order.index(x_group_1)
+        x_group_2_position = order.index(x_group_2)
+        # The actual positions that need to be tracked are traversals between two
+        # groups, e.g. the span between 1 and 3 (not inclusive). For convenience, and to
+        # remain in integer representations, these spans are represented in the tracking
+        # sets by the integer floor of the traversed numbers, e.g. span between 1-3
+        # is represented by the set (1, 2).
+        utilized_x_spaces = set(
+            range(
+                min(x_group_1_position, x_group_2_position),
+                max(x_group_1_position, x_group_2_position),
+            )
+        )
+        annotation_not_placed = True
+        candidate_height = 1
+        while annotation_not_placed:
+            if candidate_height not in rendered_positions:
+                rendered_positions[candidate_height] = set()
+            if rendered_positions[candidate_height].isdisjoint(utilized_x_spaces):
+                rendered_positions[candidate_height] = rendered_positions[
+                    candidate_height
+                ].union(utilized_x_spaces)
+                annotation_not_placed = False
+                break
+            candidate_height += 1
+        _add_pvalue_bar_to_plot(
+            pval=pval_adj,
+            x_groups=[x_group_1, x_group_2],
+            ax=ax,
+            max_y=df[y].max(),
+            height=height,
+            height_level=candidate_height,
+        )
+
+    # Add sample size annotations to x-axis
+    counts = df[x].value_counts(sort=False)
+    labels = [
+        item.get_text() + f"\n(n={counts[order[idx]]})"
+        for idx, item in enumerate(ax.get_xticklabels())
+    ]
+    ticks = ax.get_xticks()
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labels, rotation=90)
+    return fig, ax, mw
 
 
 def scatter_plot_with_fits(
@@ -16,8 +267,8 @@ def scatter_plot_with_fits(
     x_vanity_label: str,
     y_label: str,
     y_vanity_label: str,
-    prediction_label: str = "is_pappa2_hdp",
-    prediction_vanity_label: str = "PAPPA2+",
+    prediction_label: str,
+    prediction_vanity_label: str,
 ):
     """
     Plot scatter plot with linear lease-squares regression fits. Fit annotations added
@@ -51,11 +302,11 @@ def scatter_plot_with_fits(
         .reset_index(drop=True)
         .copy()
     )
-    assert set(plot_df[prediction_label]) == {
+    assert set(plot_df[prediction_label]) <= {
         False,
         True,
     }, (
-        f"Values for {prediction_label} must be True/False, "
+        f"Values for {prediction_label} must be True and/or False, "
         + f"given {set(plot_df[prediction_label])}"
     )
 
@@ -65,6 +316,12 @@ def scatter_plot_with_fits(
     slope_map = {}
     pval_map = {}
     for label_val in [False, True]:
+        if label_val not in count_df.index:
+            count_df = pd.concat([count_df, pd.Series({label_val: np.nan})])
+            rsq_map[label_val] = np.nan
+            pval_map[label_val] = np.nan
+            slope_map[label_val] = np.nan
+            continue
         eval_df = plot_df.loc[plot_df[prediction_label] == label_val].reset_index(
             drop=True
         )
@@ -86,18 +343,20 @@ def scatter_plot_with_fits(
 
     name_map = {
         False: f"Not {prediction_vanity_label}\nn={count_df[False]}, "
+        + f"$r^2$={rsq_map[False]:.2f},\n"
         + f"m={slope_map[False]:.0e} (p={pval_map[False]:.2f})",
         True: f"{prediction_vanity_label}\nn={count_df[True]}, "
+        + f"$r^2$={rsq_map[True]:.2f},\n"
         + f"m={slope_map[True]:.2f} (p={p_string_pos_anno})",
     }
     plot_df["hue_label"] = plot_df[prediction_label].map(name_map)
 
     # Add regression plot & contours
-    df_cases = plot_df[plot_df[prediction_label]].copy()
+    df_cases = plot_df[plot_df[prediction_label] == True].copy()
     x_subset_T = pd.Series(df_cases[x_label], name=f"{x_label}_subset_T")
     y_subset_T = pd.Series(df_cases[y_label], name=f"{y_label}_subset_T")
 
-    df_controls = plot_df[~plot_df[prediction_label]].copy()
+    df_controls = plot_df[plot_df[prediction_label] == False].copy()
     x_subset_F = pd.Series(df_controls[x_label], name=f"{x_label}_subset_F")
     y_subset_F = pd.Series(df_controls[y_label], name=f"{y_label}_subset_F")
 
@@ -111,6 +370,9 @@ def scatter_plot_with_fits(
         (f"{x_label}_subset_T", f"{y_label}_subset_T", cm_colors[1], name_map[True]),
         (f"{x_label}_subset_F", f"{y_label}_subset_F", cm_colors[0], name_map[False]),
     ]:
+        if plot_df[y].isna().all():
+            print(f"No samples apply for {label}, skipping")
+            continue
         g.map(
             sns.regplot,
             x,
@@ -130,16 +392,19 @@ def scatter_plot_with_fits(
             levels=5,
         )
 
-    # Only add points for cases
-    g.map_dataframe(
-        sns.scatterplot,
-        x=f"{x_label}_subset_T",
-        y=f"{y_label}_subset_T",
-        color=cm_colors[1],
-        alpha=1,
-        marker=".",
-        s=27,
-    )
+    # Only add points for cases if less than 200 samples
+    n_dots = len(plot_df[f"{x_label}_subset_T"].dropna())
+    print(f"\nNumber of scatter points to add (skip if >= 200): {n_dots}\n")
+    if (n_dots > 0) & (n_dots < 200):
+        g.map_dataframe(
+            sns.scatterplot,
+            x=f"{x_label}_subset_T",
+            y=f"{y_label}_subset_T",
+            color=cm_colors[1],
+            alpha=1,
+            marker=".",
+            s=27,
+        )
     g.add_legend()
     plt.xlabel(x_vanity_label)
     plt.ylabel(y_vanity_label)
@@ -177,7 +442,7 @@ def qqplot(
     hue_min: float | None = None,
     hue_max: float | None = None,
     legend_title: str | None = None,
-) -> tuple[plt.Figure, plt.Axes]:
+) -> plt.Figure:
     """
     Generates a QQ Plot of -log10 observed p-values (y-axis) vs. expected -log10
     p-values from a uniform distribution (x-axis). The genomic inflation factor (lambda)
@@ -205,7 +470,7 @@ def qqplot(
         y_lims: If not None, set y-axis to limits, default is to use the plot range.
         hue_label: If not None, color scatter plot by this label, defaults to no
             color added.
-        hue_cmap: If not None, palette to use for hue_label, defaults to 'hsv'.
+        hue_cmap: If not None, palette to use for hue_label, defaults to "hsv".
         legend_title: Title to add to legend, defaults to no title added.
 
     Returns:
@@ -439,4 +704,4 @@ def plot_qq_set(df: pd.DataFrame, eval_list: Sequence[tuple]):
         )
         plt.show()
 
-        print(f"{mw_df.loc[:(n_anno-1), ['feature', 'pvalue', 'cohens_d']]}\n\n")
+        print(f'{mw_df.loc[:(n_anno-1), ["feature", "pvalue", "cohens_d"]]}\n\n')
