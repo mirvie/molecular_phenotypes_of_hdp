@@ -1,7 +1,7 @@
 ---
 title: "PE manuscript stats"
 author: "Mirvie"
-date: "2024-06-29"
+date: "2024-12-30"
 output: html_document
 ---
 
@@ -15,7 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Load data
 ```{r}
-df <- arrow::read_feather("sample_data.feather")
+df <- arrow::read_feather("sample_data.feather")  %>% 
+  dplyr::rename(is_plac_hdp = is_pappa2_hdp) # renamed during a revision
 gene_spaces <- jsonlite::read_json("genes_space.json")
 all_genes <- unlist(gene_spaces$all_genes)
 ```
@@ -27,13 +28,11 @@ Correlation between PAPPA2 and delivery GA.
 ```{r}
 # Implementation details:
 # - Pearson correlation
-# - Filtered to NMRF samples only
-# - Filtered to green triangle only
+# - Filtered to pe only
 cor_pappa2_dga <- df %>%
-  select(PAPPA2, is_nmrf, is_pappa2_hdp, delivery_ga) %>%
+  select(PAPPA2, is_pe, delivery_ga) %>%
   filter(
-    is_nmrf == TRUE,
-    is_pappa2_hdp == TRUE
+    is_pe == TRUE
   ) %>%
   correlation::cor_test(data = ., x = "PAPPA2", y = "delivery_ga", method = "pearson")
 print(cor_pappa2_dga)
@@ -46,18 +45,18 @@ Cohen's d of PAPPA2 for PAPPA2+ HDP vs. CTRL within NMRF.
 # Implementation details:
 # - Cohen's d with no small-sample adjustment and a pooled SD
 # - Filtered to NMRF samples only
-# - Comparison is GT vs everything else.
+# - Comparison is plac PE vs everything else.
 reference_group <- df %>%
-  select(is_pappa2_hdp, is_nmrf, PAPPA2) %>%
+  select(is_plac_hdp, is_nmrf, PAPPA2) %>%
   filter(
-    is_pappa2_hdp == FALSE,
+    is_plac_hdp == FALSE,
     is_nmrf == TRUE
   ) %>%
   pull(PAPPA2)
 effect_sizes <- df %>%
-  select(is_pappa2_hdp, is_nmrf, PAPPA2) %>%
+  select(is_plac_hdp, is_nmrf, PAPPA2) %>%
   filter(is_nmrf == TRUE) %>%
-  group_by(is_pappa2_hdp) %>%
+  group_by(is_plac_hdp) %>%
   summarise(effectsize::cohens_d(PAPPA2, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
     n = n()
   ) %>%
@@ -73,7 +72,7 @@ Sample size of training.
 ```{r}
 nrow(df)
 ```
-## Molecular phenotypes of disease
+## Molecular subtypes reclassify common clinical phenotypes
 
 Cohen's d of PAPPA2 for PE over all training.
 ```{r}
@@ -105,7 +104,7 @@ print("")
 print(effect_cd163_pe$Cohens_d)
 ```
 
-Cohen's d for PAPPA2+ PE and other HDP vs healthy controls
+PAPPA2 Cohen's d for Plac PE and other HDP vs healthy controls
 ```{r}
 # Implementation details:
 # - Cohen's d with no small-sample adjustment and a pooled SD
@@ -125,6 +124,55 @@ effect_sizes <- df %>%
   arrange(desc(Cohens_d))
 effect_sizes
 ```
+
+```{r}
+# Calculate uncertainty for the fold-change difference in effect sizes using bootstrapping.
+# Includes p-value and confidence interval. Note that p-value should be expressed as an inequality relative
+# to the number of bootstrap iters.
+ctrl_vector <- reference_group
+case_vector <- df[(df$hdp_vanity_group != "PE, Ambiguous") & (df$hdp_severity == "preterm_pe"), "PAPPA2" ]$PAPPA2
+other_vector <- df[(df$hdp_vanity_group != "PE, Ambiguous") & (df$hdp_severity == "other_hdp"), "PAPPA2" ]$PAPPA2
+print(effectsize::cohens_d(y = ctrl_vector,
+                       x = case_vector)$Cohens_d / 
+        effectsize::cohens_d(y = ctrl_vector,
+                       x = other_vector)$Cohens_d)
+boot_iters <- 50000
+case_results <- array(dim = boot_iters)
+other_results <- array(dim = boot_iters)
+for (boot_idx in 1:boot_iters){
+  ctrl_sample <- sample(ctrl_vector, replace = TRUE)
+  case_results[boot_idx] <- effectsize::cohens_d(y = ctrl_sample,
+                       x = sample(case_vector, replace = TRUE))$Cohens_d
+  other_results[boot_idx] <- effectsize::cohens_d(y = ctrl_sample,
+                       x = sample(other_vector, replace = TRUE))$Cohens_d
+}
+ratios <- case_results / other_results
+print(quantile(ratios, c(0.025, 0.975)))
+print(mean(ratios < 1))
+
+```
+
+CD163 Cohen's d for Plac PE and other HDP vs healthy controls
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - "joint Cohen's d" is interpreted to mean giving all the relevant samples the same label and then computing effect size
+# - Reference group is hdp_severity == "control" (i.e. no PE, no GHTN, no ambiguity in the label)
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, CD163) %>%
+  filter(hdp_severity == "control") %>%
+  pull(CD163)
+effect_sizes <- df %>%
+  select(hdp_severity, hdp_vanity_group, is_nmrf, CD163) %>%
+  filter(hdp_vanity_group != "PE, Ambiguous") %>%
+  group_by(hdp_severity) %>%
+  summarise(effectsize::cohens_d(CD163, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(Cohens_d))
+effect_sizes
+```
+
 
 NMRF and MRF sample size in training.
 ```{r}
@@ -184,6 +232,33 @@ effect_sizes <- df %>%
 effect_sizes
 ```
 
+
+Cohen's d of PAPPA2 for PAPPA2+ PE vs. all other samples within NMRF.
+```{r}
+# Implementation details:
+# - Cohen's d with no small-sample adjustment and a pooled SD
+# - Reference group is hdp_severity %in% c("control", "other_hdp")
+# - Filtered to NMRF == True
+# - Use the hdp_severity label to identify controls, to align with prior analyses.
+reference_group <- df %>%
+  select(hdp_severity, is_nmrf, PAPPA2) %>%
+  filter(
+    hdp_severity %in% c("control", "other_hdp"),
+    is_nmrf == TRUE
+  ) %>%
+  pull(PAPPA2)
+effect_sizes <- df %>%
+  select(is_plac_hdp, is_nmrf, PAPPA2) %>%
+  filter(is_nmrf == TRUE) %>%
+  group_by(is_plac_hdp) %>%
+  summarise(effectsize::cohens_d(PAPPA2, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(Cohens_d))
+effect_sizes
+```
+
+
 Correlation between PAPPA2 and delivery GA within NMRF, by PAPPA2+ status.
 ```{r}
 # Implementation details:
@@ -191,10 +266,10 @@ Correlation between PAPPA2 and delivery GA within NMRF, by PAPPA2+ status.
 # - Filtered to NMRF samples only
 # - Filtered to green triangle only
 cor_pappa2_dga <- df %>%
-  select(PAPPA2, is_nmrf, is_pappa2_hdp, delivery_ga) %>%
+  select(PAPPA2, is_nmrf, is_plac_hdp, delivery_ga) %>%
   filter(
     is_nmrf == TRUE,
-    is_pappa2_hdp == TRUE
+    is_plac_hdp == TRUE
   ) %>%
   correlation::cor_test(data = ., x = "PAPPA2", y = "delivery_ga", method = "pearson")
 print(cor_pappa2_dga)
@@ -214,56 +289,6 @@ print(sum(df$sptb_not_pe))
 print(effectsize::cohens_d(df$PAPPA2[df$sptb_not_pe == TRUE], 
                            y = df$PAPPA2[df$sptb_not_pe == FALSE], 
                            adjust = FALSE, pooled_sd = TRUE))
-```
-
-## RNA-driven Classifier to Predict PAPPA2+ HDP
-
-Cohen's d of PAPPA (not PAPPA2) for PAPPA2+ PE and Other HDP vs. healthy controls within NMRF.
-```{r}
-# Implementation details:
-# - Cohen's d with no small-sample adjustment and a pooled SD
-# - Reference group is hdp_severity == "control" (i.e. exclude GHTN, non-GT PE)
-# - Filtered to NMRF == True
-# - Use the hdp_severity label to identify GT instead of the GT label, to align with identification of controls.
-reference_group <- df %>%
-  select(hdp_severity, is_nmrf, PAPPA) %>%
-  filter(
-    hdp_severity == "control",
-    is_nmrf == TRUE
-  ) %>%
-  pull(PAPPA)
-effect_sizes <- df %>%
-  select(hdp_severity, is_nmrf, PAPPA) %>%
-  filter(is_nmrf == TRUE) %>%
-  group_by(hdp_severity) %>%
-  summarise(effectsize::cohens_d(PAPPA, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
-    n = n()
-  )
-effect_sizes
-```
-
-Cohen's d of PLGF for PAPPA2+ PE and Other HDP vs. healthy controls within NMRF.
-```{r}
-# Implementation details:
-# - Cohen's d with no small-sample adjustment and a pooled SD
-# - Reference group is hdp_severity == "control" (i.e. exclude GHTN, non-GT PE)
-# - Filtered to NMRF == True
-# - Use the hdp_severity label to identify GT instead of the GT label, to align with identification of controls.
-reference_group <- df %>%
-  select(hdp_severity, is_nmrf, PGF) %>%
-  filter(
-    hdp_severity == "control",
-    is_nmrf == TRUE
-  ) %>%
-  pull(PGF)
-effect_sizes <- df %>%
-  select(hdp_severity, is_nmrf, PGF) %>%
-  filter(is_nmrf == TRUE) %>%
-  group_by(hdp_severity) %>%
-  summarise(effectsize::cohens_d(PGF, y = reference_group, adjust = FALSE, pooled_sd = TRUE),
-    n = n()
-  )
-effect_sizes
 ```
 
 ```{r}
